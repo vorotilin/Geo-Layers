@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: CI will be configured at M1
+        run: |
+          echo "Стек ещё не выбран (этап M0)."
+          echo "Тесты и линтер будут добавлены на M1 — см. docs/design.md."

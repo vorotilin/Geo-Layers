@@ -1,0 +1,53 @@
+# Окружение и секреты
+.env
+.env.local
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# ОС
+.DS_Store
+Thumbs.db
+
+# Логи и временные файлы
+*.log
+tmp/
+temp/
+
+# Данные (крупные артефакты не коммитим)
+data/*.zip
+data/*.gpkg
+data/*.mbtiles
+data/*.pmtiles
+!data/samples/
+
+# Python (если выберете Python)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node (если выберете Node)
+node_modules/
+dist/
+.next/
+coverage/
+
+# Go (если выберете Go)
+bin/
+*.test
+
+# Java/Kotlin (если выберете JVM)
+target/
+build/
+.gradle/
+
+# Rust (если выберете Rust)
+/target/
