@@ -34,7 +34,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# Node (если выберете Node)
+# Node (сборка веб-интерфейса ui/)
 node_modules/
 dist/
 .next/

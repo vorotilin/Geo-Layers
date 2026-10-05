@@ -19,6 +19,12 @@
 - `docs/decisions.md` — принятые решения (мини-ADR).
 - `docs/questions.md` — открытые вопросы заказчику.
 - `docs/known-issues.md` — известные ограничения и долги.
+- `brief.md` — задание сервиса.
+
+## Стек (кратко)
+
+Python 3.12 + FastAPI, PostgreSQL + PostGIS, Redis, S3 (MinIO локально),
+веб-интерфейс на Vue 3 (JavaScript, Vite) + MapLibre GL JS. Обоснование — `docs/decisions.md`.
 
 ## Требования
 
