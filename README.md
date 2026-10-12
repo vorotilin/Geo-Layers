@@ -9,8 +9,8 @@
 
 ## Статус
 
-Этап **M0. Дизайн**. Код и `docker-compose.yml` появятся на M1 после
-согласования дизайна с заказчиком.
+Этап **M1. Вертикальный срез** — в работе, план в `docs/plan-m1.md`.
+Сейчас готов каркас: `/health`, `/ready`, Docker, CI.
 
 ## Документация
 
@@ -34,8 +34,28 @@ Python 3.12 + FastAPI, PostgreSQL + PostGIS, Redis, S3 (MinIO локально),
 
 ## Запуск
 
-Будет описан после M1: `docker compose up` поднимает всё нужное для
-локального запуска на чистой машине за одну команду.
+Нужен Docker с Compose v2.
+
+```sh
+docker compose up -d --build --wait
+curl http://localhost:8000/health   # жив, версия сборки
+curl http://localhost:8000/ready    # зависимости доступны
+```
+
+Файл `.env` не обязателен: у всех переменных в `docker-compose.yml` есть значения
+для локального запуска (только для разработки). Swagger UI — `http://localhost:8000/docs`
+(только при `APP_ENV=dev`).
+
+Сервисы на M1: `api`, `worker` (тот же образ), `postgres` (PostGIS) и одноразовый
+`migrate`. Данные — в volume `data`. S3 и Redis добавятся на M2.
+
+### Разработка без Docker
+
+```sh
+pip install uv==0.13.0
+uv sync
+uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest
+```
 
 ## Конфигурация
 

@@ -1,0 +1,82 @@
+# Локальный запуск: `docker compose up` на чистой машине (common-requirements §4).
+# Файл .env не обязателен: у всех переменных есть значения для локального запуска.
+# Значения по умолчанию ниже — только для разработки, не для прода.
+#
+# M1: api + worker + PostgreSQL. Хранилище — общий volume `data`.
+# S3 и Redis (rate limit) добавятся на M2 (docs/plan-m1.md).
+
+x-app: &app
+  build:
+    context: .
+    args:
+      APP_VERSION: ${APP_VERSION:-dev}
+  image: apc-layers:${APP_VERSION:-dev}
+  restart: unless-stopped
+  environment:
+    APP_ENV: ${APP_ENV:-dev}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    HTTP_PORT: 8000
+    API_WORKERS: ${API_WORKERS:-2}
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+    CORS_ORIGINS: ${CORS_ORIGINS:-}
+    BOOTSTRAP_ADMIN_TOKEN: ${BOOTSTRAP_ADMIN_TOKEN:-dev-admin-token}
+    URL_SIGNING_SECRET: ${URL_SIGNING_SECRET:-dev-url-signing-secret}
+    DATABASE_URL: postgresql://apc:${POSTGRES_PASSWORD:-apc}@postgres:5432/apc
+    DATA_DIR: /var/lib/apc-layers
+    CACHE_DIR: /var/cache/apc-layers
+  volumes:
+    - data:/var/lib/apc-layers
+    - cache:/var/cache/apc-layers
+
+services:
+  # Одноразовый шаг перед стартом: каталоги хранилища, позже — миграции Alembic.
+  migrate:
+    <<: *app
+    command: ["migrate"]
+    restart: "no"
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *app
+    command: ["api"]
+    ports:
+      - "${HTTP_PORT:-8000}:8000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    stop_grace_period: 40s
+    healthcheck:
+      test: ["CMD", "python", "-m", "app", "healthcheck", "--worker"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: apc
+      POSTGRES_USER: apc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apc}
+    command: ["postgres", "-c", "shared_buffers=256MB"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apc -d apc"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pgdata:
+  data:
+  cache:
