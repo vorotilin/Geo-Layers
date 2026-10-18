@@ -1,6 +1,9 @@
 """Слои: версии и публикация, значение в точке, подписанные тайлы (design §8, план M1 шаг 8)."""
 
+import base64
 import hashlib
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -26,6 +29,7 @@ router = APIRouter(prefix="/v1", tags=["layers"])
 
 DEFAULT_STYLE = "default"  # M1: одна фиксированная палитра; стили с ревизиями — M2
 MAX_VALUE_LAYERS = 20
+MAX_PAGE = 200
 TILE_CACHE_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
 
 VERSION_SELECT = """
@@ -82,6 +86,84 @@ def public_version(v: dict[str, Any], full: bool = False) -> dict[str, Any]:
         else {k: stats.get(k) for k in ("count", "coverage", "min", "max", "mean")},
     }
     return out
+
+
+def _encode_cursor(created_at: Any, row_id: Any) -> str:
+    raw = f"{created_at.isoformat()}|{row_id}".encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime, str]:
+    try:
+        raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode()
+        ts, _, row_id = raw.partition("|")
+        return datetime.fromisoformat(ts), str(uuid.UUID(row_id))
+    except (ValueError, UnicodeDecodeError):
+        raise ApiError(400, "bad_cursor", "Некорректный курсор") from None
+
+
+@router.get("/layers")
+def list_layers(
+    request: Request,
+    principal: ReadPrincipal,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 50,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """Каталог слоёв namespace по времени создания; страницы — курсором."""
+    after = _decode_cursor(cursor) if cursor else None
+    with request.app.state.pool.connection() as conn:
+        rows = (
+            conn.cursor(row_factory=dict_row)
+            .execute(
+                """
+            SELECT l.id, l.slug, l.title, l.unit, l.value_kind, l.created_at,
+                   d.id AS dataset_id, d.provider, d.title AS dataset_title,
+                   (SELECT v.id FROM layer_version v
+                    WHERE v.layer_id = l.id AND v.status = 'published'
+                    ORDER BY v.period DESC, v.published_at DESC LIMIT 1) AS current_version_id,
+                   (SELECT count(*) FROM layer_version v WHERE v.layer_id = l.id) AS versions
+            FROM layer l JOIN dataset d ON d.id = l.dataset_id
+            WHERE d.namespace_id = %s
+              AND (%s::timestamptz IS NULL OR (l.created_at, l.id) > (%s::timestamptz, %s::uuid))
+            ORDER BY l.created_at, l.id
+            LIMIT %s
+            """,
+                (
+                    principal.namespace_id,
+                    after and after[0],
+                    after and after[0],
+                    after and after[1],
+                    limit + 1,
+                ),
+            )
+            .fetchall()
+        )
+    page = rows[:limit]
+    return {
+        "items": [
+            {
+                "id": str(r["id"]),
+                "slug": r["slug"],
+                "title": r["title"],
+                "unit": r["unit"],
+                "value_kind": r["value_kind"],
+                "dataset": {
+                    "id": str(r["dataset_id"]),
+                    "provider": r["provider"],
+                    "title": r["dataset_title"],
+                },
+                "current_version_id": str(r["current_version_id"])
+                if r["current_version_id"]
+                else None,
+                "versions": r["versions"],
+                "created_at": r["created_at"],
+            }
+            for r in page
+        ],
+        "next_cursor": _encode_cursor(page[-1]["created_at"], page[-1]["id"])
+        if len(rows) > limit
+        else None,
+    }
 
 
 @router.get("/layers/{layer_id}")

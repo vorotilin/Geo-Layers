@@ -334,3 +334,20 @@ def test_sample_three_files_one_grid(env: Env) -> None:
         lat = (min(p[1] for p in ring) + max(p[1] for p in ring)) / 2
         expected = feature["properties"]["val"]
         assert env.value(version["layer_id"], lon, lat) == pytest.approx(expected, rel=1e-6)
+
+
+def test_layer_catalog_cursor(env: Env) -> None:
+    grid = crs84_squares(metrics=3)
+    env.import_(grid.geojson(), grid.manifest())
+    seen: list[str] = []
+    cursor = None
+    while True:
+        params: dict[str, Any] = {"limit": 2} | ({"cursor": cursor} if cursor else {})
+        page = env.client.get("/v1/layers", params=params, headers=AUTH).json()
+        seen += [item["slug"] for item in page["items"]]
+        cursor = page["next_cursor"]
+        if not cursor:
+            break
+    assert sorted(seen) == ["metric_0", "metric_1", "metric_2"]  # без повторов и пропусков
+    bad = env.client.get("/v1/layers", params={"cursor": "!!"}, headers=AUTH)
+    assert bad.status_code == 400 and bad.json()["error"] == "bad_cursor"

@@ -74,6 +74,7 @@ dev = [
     { name = "httpx2" },
     { name = "mypy" },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "shapely" },
 ]
@@ -102,6 +103,7 @@ dev = [
     { name = "httpx2" },
     { name = "mypy", specifier = ">=1.11" },
     { name = "pytest", specifier = ">=8" },
+    { name = "pyyaml", specifier = ">=6" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "shapely", specifier = ">=2.0" },
 ]

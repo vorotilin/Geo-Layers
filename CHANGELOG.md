@@ -5,6 +5,9 @@
 ## [Unreleased]
 
 ### Добавлено
+- M1, шаги 9–10. Сквозной сценарий `scripts/e2e.py` в CI после `docker compose up`.
+  `GET /v1/layers` — каталог слоёв с курсором. `openapi.yaml` (OpenAPI 3.1) генерируется
+  из кода (`python -m app.openapi`), тест сверяет файл с кодом. README: запуск за 10 минут.
 - M1, шаги 6–8. Генератор синтетики `tests/synth/` (квадраты CRS84 с «плавающим» шагом,
   квадраты в UTM, дыры, битые объекты; оракул на shapely).
 - Импорт GeoJSON-сетки: `POST /v1/files` (multipart, sha256, дедупликация файла),

@@ -1,0 +1,638 @@
+openapi: 3.1.0
+info:
+  title: apc-layers
+  version: m1-draft
+  description: "Сервис гео-слоёв платформы наружной рекламы. Черновик контракта этапа M1.\n\n- Аутентификация:\
+    \ `Authorization: Bearer <token>`, области `admin ⊃ write ⊃ read`.\n- Тайлы — по подписанной ссылке\
+    \ из `POST /v1/tiles/sign` (подпись префикса пути, ADR-0008).\n- Долгие операции — задания: `202`\
+    \ + `status_url`, затем `GET /v1/jobs/{id}`.\n- Идемпотентность: `Idempotency-Key` у `POST /v1/imports`\
+    \ и дедупликация импорта\n  по sha256 файла + хэшу нормализованного манифеста.\n- Ошибки — `{error,\
+    \ message, details}`; неизвестные поля игнорируются, перечисления открытые.\n"
+paths:
+  /health:
+    get:
+      tags:
+      - service
+      summary: Health
+      description: Процесс жив. Зависимости не проверяет.
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Health Get
+        4XX:
+          description: Ошибка запроса
+          content: &id001
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /ready:
+    get:
+      tags:
+      - service
+      summary: Ready
+      description: 'Готов принимать запросы: все зависимости доступны.'
+      operationId: ready_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+  /v1/jobs/{job_id}:
+    get:
+      tags:
+      - jobs
+      summary: Get Job
+      operationId: get_job_v1_jobs__job_id__get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Job V1 Jobs  Job Id  Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/jobs/{job_id}/cancel:
+    post:
+      tags:
+      - jobs
+      summary: Cancel Job
+      description: Отмена queued/running. Повторная отмена — 200, завершённое задание — 409.
+      operationId: cancel_job_v1_jobs__job_id__cancel_post
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Cancel Job V1 Jobs  Job Id  Cancel Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/jobs/{job_id}/retry:
+    post:
+      tags:
+      - jobs
+      summary: Retry Job
+      description: Повтор failed/cancelled с нуля попыток. Иначе — 409.
+      operationId: retry_job_v1_jobs__job_id__retry_post
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Retry Job V1 Jobs  Job Id  Retry Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/files:
+    post:
+      tags:
+      - imports
+      summary: Upload File
+      description: Файл multipart (поле `file`). Тот же файл повторно — 200 и существующая запись.
+      operationId: upload_file_v1_files_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_file_v1_files_post'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/imports:
+    post:
+      tags:
+      - imports
+      summary: Create Import
+      description: Импорт файла по манифесту → 202 и задание. Тот же файл + манифест — 200, то же задание.
+      operationId: create_import_v1_imports_post
+      parameters:
+      - name: idempotency-key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRequest'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/imports/{import_id}:
+    get:
+      tags:
+      - imports
+      summary: Get Import
+      operationId: get_import_v1_imports__import_id__get
+      parameters:
+      - name: import_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Import Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Import V1 Imports  Import Id  Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/layers:
+    get:
+      tags:
+      - layers
+      summary: List Layers
+      description: Каталог слоёв namespace по времени создания; страницы — курсором.
+      operationId: list_layers_v1_layers_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Layers V1 Layers Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/layers/{layer_id}:
+    get:
+      tags:
+      - layers
+      summary: Get Layer
+      operationId: get_layer_v1_layers__layer_id__get
+      parameters:
+      - name: layer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Layer Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Layer V1 Layers  Layer Id  Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/layers/{layer_id}/versions/{version_id}:
+    get:
+      tags:
+      - layers
+      summary: Get Version
+      operationId: get_version_v1_layers__layer_id__versions__version_id__get
+      parameters:
+      - name: layer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Layer Id
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Version Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Version V1 Layers  Layer Id  Versions  Version Id  Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/layers/{layer_id}/versions/{version_id}/publish:
+    post:
+      tags:
+      - layers
+      summary: Publish Version
+      description: 'Публикация: версия становится текущей для своего периода. Повтор — без изменений.
+
+
+        M1 — синхронно; с пирамидой обзоров (M2) станет заданием (202).'
+      operationId: publish_version_v1_layers__layer_id__versions__version_id__publish_post
+      parameters:
+      - name: layer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Layer Id
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Version Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Publish Version V1 Layers  Layer Id  Versions  Version Id  Publish Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/values:
+    get:
+      tags:
+      - layers
+      summary: Get Values
+      description: Значение в точке по слоям. null — ячейки нет или значение неизвестно.
+      operationId: get_values_v1_values_get
+      parameters:
+      - name: lat
+        in: query
+        required: true
+        schema:
+          type: number
+          maximum: 90
+          minimum: -90
+          title: Lat
+      - name: lng
+        in: query
+        required: true
+        schema:
+          type: number
+          maximum: 180
+          minimum: -180
+          title: Lng
+      - name: layers
+        in: query
+        required: true
+        schema:
+          type: string
+          description: id слоёв через запятую, `id@version` — конкретная версия
+          title: Layers
+        description: id слоёв через запятую, `id@version` — конкретная версия
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Values V1 Values Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/tiles/sign:
+    post:
+      tags:
+      - layers
+      summary: Sign Tiles
+      description: Подписанный шаблон URL тайлов слоя. Без version — текущая опубликованная версия.
+      operationId: sign_tiles_v1_tiles_sign_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Sign Tiles V1 Tiles Sign Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/tiles/{layer_id}/{version_id}/{style}/{tms}/{z}/{x}/{y}:
+    get:
+      tags:
+      - layers
+      summary: Get Tile
+      operationId: get_tile_v1_tiles__layer_id___version_id___style___tms___z___x___y__get
+      parameters:
+      - name: layer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Layer Id
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Version Id
+      - name: style
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Style
+      - name: tms
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tms
+      - name: z
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Z
+      - name: x
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: X
+      - name: y
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Y
+      responses:
+        '200':
+          description: PNG
+          content:
+            image/png: {}
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      description: 'Тайл PNG 256×256 (`{y}.png`) или 512×512 (`{y}@2x.png`). `tms`: `3857` | `3395`. Доступ
+        — по `exp` и `sig` из `POST /v1/tiles/sign` или Bearer-токену read.'
+components:
+  schemas:
+    Body_upload_file_v1_files_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      type: object
+      required:
+      - file
+      title: Body_upload_file_v1_files_post
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ImportRequest:
+      properties:
+        file_id:
+          type: string
+          title: File Id
+        manifest:
+          additionalProperties: true
+          type: object
+          title: Manifest
+      type: object
+      required:
+      - file_id
+      - manifest
+      title: ImportRequest
+    SignRequest:
+      properties:
+        layer:
+          type: string
+          title: Layer
+        version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version
+        style:
+          type: string
+          title: Style
+          default: default
+        tms:
+          type: string
+          enum:
+          - '3857'
+          - '3395'
+          title: Tms
+          default: '3857'
+        ttl:
+          anyOf:
+          - type: integer
+            maximum: 2592000.0
+            minimum: 60.0
+          - type: 'null'
+          title: Ttl
+      type: object
+      required:
+      - layer
+      title: SignRequest
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    Error:
+      type: object
+      required:
+      - error
+      - message
+      - details
+      properties:
+        error:
+          type: string
+          description: Машинный слаг, snake_case
+          examples:
+          - job_not_found
+        message:
+          type: string
+          description: Текст для человека
+          examples:
+          - Задание не найдено
+        details:
+          type: object
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer

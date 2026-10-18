@@ -73,6 +73,8 @@ jobs:
         run: |
           docker compose exec -T postgres psql -U apc -d apc -tAc             "SELECT version_num FROM alembic_version" | grep -qx 0001
           test "$(docker compose exec -T postgres psql -U apc -d apc -tAc 'SELECT count(*) FROM token')" = "1"
+      - name: Сквозной сценарий (загрузка → импорт → публикация → значение → тайл)
+        run: python3 scripts/e2e.py
       - name: Контейнер api не от root
         run: test "$(docker compose exec -T api id -u)" != "0"
       - name: Логи при падении
