@@ -19,6 +19,7 @@
 - `docs/decisions.md` — принятые решения (мини-ADR).
 - `docs/questions.md` — открытые вопросы заказчику.
 - `docs/known-issues.md` — известные ограничения и долги.
+- `docs/how-to-check.md` — как самому запустить и проверить M1 (Windows, PowerShell).
 - `brief.md` — задание сервиса.
 
 ## Стек (кратко)

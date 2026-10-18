@@ -24,6 +24,7 @@ data/*.gpkg
 data/*.mbtiles
 data/*.pmtiles
 !data/samples/
+data/sample/
 
 # Python (если выберете Python)
 __pycache__/
