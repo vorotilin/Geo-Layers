@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Добавлено
+- M1, шаг 4: схема БД на Alembic (`app/db/migrations`, ревизия `0001`): namespace,
+  token, file, job, import, dataset, grid, grid_cell (PostGIS, GiST), layer, layer_version.
+  Миграции применяет `python -m app migrate` (в compose — сервис `migrate`) под advisory lock.
+- Bearer-токены: хэш sha256 в БД, области `admin ⊃ write ⊃ read`, отзыв через `revoked_at`;
+  admin-токен из `BOOTSTRAP_ADMIN_TOKEN` создаётся при пустой таблице.
+- Тесты с БД (`TEST_DATABASE_URL`, PostGIS); в CI — сервис postgis.
 - M1, каркас: приложение FastAPI (`app/`), `/health`, `/ready` (БД + хранилище),
   единая форма ошибок, `X-Request-Id`, JSON-логи без query-строк; Swagger UI только в dev.
 - Один образ для ролей `api | worker | migrate` (multi-stage, не root, `HEALTHCHECK`),
@@ -22,6 +28,8 @@
 - `common-requirements.md` — общие требования к сервисам платформы.
 
 ### Изменено
+- Healthcheck postgres в compose и CI — по TCP: при первой инициализации образ
+  postgis перезапускается, и проверка по сокету давала ложное «готов».
 - Valkey заменён на Redis 8; Redis используется только для rate limit, кэш тайлов — на диске.
 - Проекции 3857/3395 берутся из morecantile вместо собственных формул (ADR-0006).
 - Запасной план по скорости рендера: оптимизация numpy, затем сервис на Go (вместо Rust).

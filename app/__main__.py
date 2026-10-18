@@ -70,7 +70,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("api", help="HTTP API (gunicorn + uvicorn)")
     sub.add_parser("worker", help="воркер заданий")
-    sub.add_parser("migrate", help="миграции БД и создание бакета")
+    sub.add_parser("migrate", help="миграции БД и bootstrap-токен")
     hc = sub.add_parser("healthcheck", help="проверка для HEALTHCHECK контейнера")
     hc.add_argument("--worker", action="store_true", help="проверять воркер, а не HTTP")
     args = parser.parse_args()

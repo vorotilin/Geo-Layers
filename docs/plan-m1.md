@@ -21,19 +21,19 @@
 
 ## Этап А. Каркас — чтобы всё сразу жило в Docker
 
-1. **Скелет проекта.** `pyproject.toml` + `uv.lock`, пакет `app/`, конфиг только
+1. ✅ **Скелет проекта.** `pyproject.toml` + `uv.lock`, пакет `app/`, конфиг только
    из env (`pydantic-settings`, по `.env.example`), JSON-логи с `X-Request-Id`,
    единый формат ошибок `{error, message, details}`; ruff и pytest.
-2. **Docker.** Multi-stage `Dockerfile`, не root, `HEALTHCHECK`; `docker-compose.yml`:
+2. ✅ **Docker.** Multi-stage `Dockerfile`, не root, `HEALTHCHECK`; `docker-compose.yml`:
    `api`, `worker` (тот же образ), `postgis 16-3.4`. Ручки `/health`,
    `/ready` (БД + хранилище),
    `/docs` только при `APP_ENV=dev`.
    **Проверка:** `docker compose up` на чистой машине.
-3. **CI.** Заменить заглушку на ruff + pytest + gitleaks. Зелёный с первого дня.
+3. ✅ **CI.** Заменить заглушку на ruff + pytest + gitleaks. Зелёный с первого дня.
 
 ## Этап Б. Сам сценарий
 
-4. **Схема БД (Alembic), урезанная:** `token`, `file`, `import`, `dataset`, `grid`,
+4. ✅ **Схема БД (Alembic), урезанная:** `token`, `file`, `import`, `dataset`, `grid`,
    `grid_cell`, `layer`, `layer_version`, `job`. Namespace фиксированный `shared`;
    Bearer-токен из `BOOTSTRAP_ADMIN_TOKEN`. Миграции — автоматически при старте.
 5. **Очередь заданий (ADR-0003):** `SKIP LOCKED`, `heartbeat_at`, команда `worker`,

@@ -10,7 +10,7 @@
 ## Статус
 
 Этап **M1. Вертикальный срез** — в работе, план в `docs/plan-m1.md`.
-Сейчас готов каркас: `/health`, `/ready`, Docker, CI.
+Готово: каркас (`/health`, `/ready`, Docker, CI), схема БД и Bearer-токены (шаги 1–4).
 
 ## Документация
 
@@ -47,15 +47,27 @@ curl http://localhost:8000/ready    # зависимости доступны
 (только при `APP_ENV=dev`).
 
 Сервисы на M1: `api`, `worker` (тот же образ), `postgres` (PostGIS) и одноразовый
-`migrate`. Данные — в volume `data`. S3 и Redis добавятся на M2.
+`migrate` (миграции БД и bootstrap admin-токен из `BOOTSTRAP_ADMIN_TOKEN`,
+в dev — `dev-admin-token`). Данные — в volume `data`. S3 и Redis добавятся на M2.
 
 ### Разработка без Docker
 
 ```sh
 pip install uv==0.13.0
 uv sync
-uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest
+uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run pytest
 ```
+
+Тесты с БД нужен PostGIS, иначе они пропускаются. Схема `public` тестовой базы
+пересоздаётся — не указывайте рабочую базу:
+
+```sh
+docker run -d --name apc-test-pg -p 55432:5432 -e POSTGRES_DB=apc_test   -e POSTGRES_USER=apc -e POSTGRES_PASSWORD=apc postgis/postgis:16-3.4
+TEST_DATABASE_URL=postgresql://apc:apc@127.0.0.1:55432/apc_test uv run pytest
+```
+
+Миграции: `uv run alembic upgrade head` (берёт `DATABASE_URL`), новая ревизия —
+`uv run alembic revision -m "..."`; SQL пишем вручную, автогенерации нет.
 
 ## Конфигурация
 

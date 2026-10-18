@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     cors_origins: str = ""
 
     database_url: str = "postgresql://apc:apc@localhost:5432/apc"
+    # Соединений в пуле на один процесс api.
+    db_pool_size: int = 5
+
+    # Admin-токен, создаётся при пустой таблице токенов (app/migrate.py).
+    bootstrap_admin_token: str | None = None
 
     # Постоянное хранилище файлов и массивов значений. На M1 — локальный диск
     # (общий volume api и worker); S3 — с M2 (docs/plan-m1.md).

@@ -29,7 +29,7 @@ x-app: &app
     - cache:/var/cache/apc-layers
 
 services:
-  # Одноразовый шаг перед стартом: каталоги хранилища, позже — миграции Alembic.
+  # Одноразовый шаг перед стартом: каталоги хранилища, миграции Alembic, bootstrap-токен.
   migrate:
     <<: *app
     command: ["migrate"]
@@ -71,7 +71,9 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U apc -d apc"]
+      # По TCP: при первой инициализации образ postgis поднимает временный сервер
+      # только на сокете и перезапускается — проверка по сокету врёт.
+      test: ["CMD-SHELL", "pg_isready -U apc -d apc -h 127.0.0.1"]
       interval: 5s
       timeout: 5s
       retries: 20

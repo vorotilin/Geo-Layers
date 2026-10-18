@@ -14,6 +14,19 @@ jobs:
   lint-test:
     name: Линтер, типы, тесты
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: apc_test
+          POSTGRES_USER: apc
+          POSTGRES_PASSWORD: apc
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U apc -d apc_test -h 127.0.0.1"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://apc:apc@localhost:5432/apc_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,7 +41,7 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
       - name: mypy
-        run: uv run mypy app
+        run: uv run mypy app tests
       - name: pytest
         run: uv run pytest
 
@@ -56,6 +69,10 @@ jobs:
         run: |
           curl -fsS http://localhost:8000/health
           curl -fsS http://localhost:8000/ready
+      - name: Миграции применены, bootstrap-токен создан
+        run: |
+          docker compose exec -T postgres psql -U apc -d apc -tAc             "SELECT version_num FROM alembic_version" | grep -qx 0001
+          test "$(docker compose exec -T postgres psql -U apc -d apc -tAc 'SELECT count(*) FROM token')" = "1"
       - name: Контейнер api не от root
         run: test "$(docker compose exec -T api id -u)" != "0"
       - name: Логи при падении
