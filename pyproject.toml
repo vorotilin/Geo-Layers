@@ -40,6 +40,8 @@ ignore = ["S104"]  # bind 0.0.0.0 внутри контейнера — норм
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]  # тестовые токены
+# В f-строки SQL подставляется только константа JOB_COLUMNS, значения — параметрами.
+"app/jobs/queue.py" = ["S608"]
 
 [tool.mypy]
 python_version = "3.12"

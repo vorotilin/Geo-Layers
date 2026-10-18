@@ -32,6 +32,17 @@ class Settings(BaseSettings):
     data_dir: str = "/var/lib/apc-layers"
     cache_dir: str = "/var/cache/apc-layers"
 
+    # Очередь заданий (ADR-0003).
+    # Как часто воркер продлевает аренду задания и проверяет отмену, секунды.
+    job_heartbeat_seconds: float = 10
+    # Задание без heartbeat дольше этого — воркер считается упавшим, задание повторяется.
+    job_stale_seconds: float = 60
+    # Задержка повтора после ошибки: base, 4·base, 16·base … не больше max.
+    job_retry_base_seconds: float = 10
+    job_retry_max_seconds: float = 3600
+    # Как часто воркер опрашивает очередь, если не пришёл NOTIFY, секунды.
+    worker_poll_seconds: float = 5
+
     # Сколько секунд ждать каждую зависимость в /ready.
     ready_timeout_seconds: float = 2.0
 

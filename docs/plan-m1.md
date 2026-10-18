@@ -36,7 +36,7 @@
 4. ✅ **Схема БД (Alembic), урезанная:** `token`, `file`, `import`, `dataset`, `grid`,
    `grid_cell`, `layer`, `layer_version`, `job`. Namespace фиксированный `shared`;
    Bearer-токен из `BOOTSTRAP_ADMIN_TOKEN`. Миграции — автоматически при старте.
-5. **Очередь заданий (ADR-0003):** `SKIP LOCKED`, `heartbeat_at`, команда `worker`,
+5. ✅ **Очередь заданий (ADR-0003):** `SKIP LOCKED`, `heartbeat_at`, команда `worker`,
    `GET /v1/jobs/{id}`. Тесты сразу: двойной захват, падение посреди задания,
    подбор зависших.
 6. **Генератор синтетики** (`tests/synth/`): квадраты CRS84 с другим шагом + ячейки

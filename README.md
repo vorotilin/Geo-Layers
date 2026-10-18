@@ -10,7 +10,7 @@
 ## Статус
 
 Этап **M1. Вертикальный срез** — в работе, план в `docs/plan-m1.md`.
-Готово: каркас (`/health`, `/ready`, Docker, CI), схема БД и Bearer-токены (шаги 1–4).
+Готово: каркас (`/health`, `/ready`, Docker, CI), схема БД и Bearer-токены, очередь заданий и `/v1/jobs` (шаги 1–5).
 
 ## Документация
 
@@ -35,6 +35,8 @@ Python 3.12 + FastAPI, PostgreSQL + PostGIS, Redis, S3 (MinIO локально),
 ## Запуск
 
 Нужен Docker с Compose v2.
+
+Полный образец `layers_sample_2023Q1.zip` положите в `data/` (в git не попадает).
 
 ```sh
 docker compose up -d --build --wait

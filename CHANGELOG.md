@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Добавлено
+- M1, шаг 5: очередь заданий на таблице `job` (ADR-0003, `app/jobs/`): захват
+  `FOR UPDATE SKIP LOCKED`, heartbeat в отдельном потоке, подбор зависших по
+  `heartbeat_at`, повтор с растущей задержкой, `NOTIFY` для мгновенного старта,
+  `Idempotency-Key` при постановке. По SIGTERM задание возвращается в очередь
+  без потери попытки.
+- Ручки `GET /v1/jobs/{id}`, `POST /v1/jobs/{id}/cancel`, `POST /v1/jobs/{id}/retry`.
+- Настройки очереди: `JOB_HEARTBEAT_SECONDS`, `JOB_STALE_SECONDS`,
+  `JOB_RETRY_BASE_SECONDS`, `JOB_RETRY_MAX_SECONDS`, `WORKER_POLL_SECONDS`.
 - M1, шаг 4: схема БД на Alembic (`app/db/migrations`, ревизия `0001`): namespace,
   token, file, job, import, dataset, grid, grid_cell (PostGIS, GiST), layer, layer_version.
   Миграции применяет `python -m app migrate` (в compose — сервис `migrate`) под advisory lock.

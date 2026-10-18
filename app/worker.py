@@ -1,7 +1,7 @@
-"""Воркер заданий.
+"""Воркер заданий (`python -m app worker`).
 
-M1, шаг 1: только жизненный цикл — heartbeat для HEALTHCHECK и корректное
-завершение по SIGTERM. Захват заданий из таблицы `job` (ADR-0003) — шаг 5.
+Жизненный цикл: heartbeat-файл для HEALTHCHECK, корректное завершение по SIGTERM
+(текущий шаг доделывается, задание возвращается в очередь). Цикл — app/jobs/runner.py.
 """
 
 import logging
@@ -10,11 +10,11 @@ import threading
 from pathlib import Path
 
 from app.config import Settings
+from app.jobs.handlers import HANDLERS
+from app.jobs.runner import Worker
 from app.logs import setup_logging
 
 log = logging.getLogger(__name__)
-
-POLL_INTERVAL_SECONDS = 5
 
 
 def run_worker(settings: Settings, heartbeat_file: Path) -> None:
@@ -28,8 +28,4 @@ def run_worker(settings: Settings, heartbeat_file: Path) -> None:
     signal.signal(signal.SIGTERM, _on_signal)
     signal.signal(signal.SIGINT, _on_signal)
 
-    log.info("worker started", extra={"version": settings.app_version})
-    while not stop.is_set():
-        heartbeat_file.touch()
-        stop.wait(POLL_INTERVAL_SECONDS)
-    log.info("worker stopped")
+    Worker(settings, HANDLERS, stop=stop, heartbeat_file=heartbeat_file).run_forever()
