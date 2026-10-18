@@ -3,6 +3,14 @@
 
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
+# ---------- сборка веб-интерфейса (ui/, Vue 3 + Vite) ----------
+FROM node:22-alpine AS ui
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY ui ./
+RUN npm run build
+
 # ---------- сборка окружения ----------
 FROM ${PYTHON_IMAGE} AS build
 COPY --from=ghcr.io/astral-sh/uv:0.13.0 /uv /usr/local/bin/uv
@@ -27,6 +35,8 @@ ENV APP_VERSION=${APP_VERSION} \
     PYTHONDONTWRITEBYTECODE=1 \
     DATA_DIR=/var/lib/apc-layers \
     CACHE_DIR=/var/cache/apc-layers
+# Меньше арен glibc: потоки api с массивами numpy иначе раздувают RSS (docs/benchmarks.md).
+ENV MALLOC_ARENA_MAX=2
 
 RUN groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app \
@@ -35,6 +45,7 @@ RUN groupadd --system --gid 10001 app \
 
 WORKDIR /srv
 COPY --from=build --chown=app:app /srv/.venv /srv/.venv
+COPY --from=ui /ui/dist /srv/ui
 
 USER app
 EXPOSE 8000

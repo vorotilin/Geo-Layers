@@ -65,3 +65,12 @@ def test_ready_fails_when_dependency_down(monkeypatch: pytest.MonkeyPatch) -> No
     body = resp.json()
     assert body["error"] == "not_ready"
     assert body["details"]["checks"] == {"database": "fail", "storage": "ok"}
+
+
+def test_ui_served_when_built(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    (tmp_path / "index.html").write_text("<html>ui</html>", encoding="utf-8")
+    client = make_client(ui_dir=str(tmp_path))
+    assert client.get("/ui", follow_redirects=False).headers["location"] == "/ui/"
+    resp = client.get("/ui/")
+    assert resp.status_code == 200 and "ui" in resp.text
+    assert make_client(ui_dir=str(tmp_path / "none")).get("/ui/").status_code == 404

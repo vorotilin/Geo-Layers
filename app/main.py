@@ -2,9 +2,12 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import imports, jobs, layers, service
 from app.config import Settings, get_settings
@@ -53,6 +56,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(jobs.router)
     app.include_router(imports.router)
     app.include_router(layers.router)
+
+    # Веб-интерфейс (ADR-0010): статика из сборки Vite, ходит только в публичный /v1.
+    if Path(settings.ui_dir, "index.html").is_file():
+
+        @app.get("/ui", include_in_schema=False)
+        def ui_root() -> RedirectResponse:
+            return RedirectResponse("/ui/")
+
+        app.mount("/ui", StaticFiles(directory=settings.ui_dir, html=True), name="ui")
     return app
 
 

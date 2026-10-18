@@ -36,7 +36,8 @@ PALETTE = [
 CLASSES = len(PALETTE)
 ALPHA = 200
 
-_index_cache = _LRU(4096)
+# 256×256 int32 = 256 КБ на тайл: 512 тайлов ≈ 128 МБ на процесс api (их API_WORKERS).
+_index_cache = _LRU(512)
 
 
 def pixel_centers(

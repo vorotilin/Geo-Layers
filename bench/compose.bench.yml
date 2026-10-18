@@ -1,0 +1,12 @@
+# Профиль «маленький сервер» для замеров (common-requirements §4): 2 vCPU / 4 ГБ на сервис.
+#   docker compose -f docker-compose.yml -f bench/compose.bench.yml up -d --wait
+services:
+  api:
+    cpus: 2
+    mem_limit: 4g
+  worker:
+    cpus: 2
+    mem_limit: 4g
+  postgres:
+    cpus: 2
+    mem_limit: 4g

@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     signed_url_ttl_seconds: int = 86400
     sign_exp_rounding_seconds: int = 3600
 
+    # Собранная статика веб-интерфейса (ui/dist), раздаётся по /ui/. Нет каталога — нет /ui.
+    ui_dir: str = "/srv/ui"
+
     # Сколько секунд ждать каждую зависимость в /ready.
     ready_timeout_seconds: float = 2.0
 
