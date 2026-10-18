@@ -43,6 +43,17 @@ class Settings(BaseSettings):
     # Как часто воркер опрашивает очередь, если не пришёл NOTIFY, секунды.
     worker_poll_seconds: float = 5
 
+    # Лимиты (common-requirements §4).
+    max_upload_bytes: int = 4 * 1024**3
+    max_job_duration_seconds: int = 3600
+    parser_memory_limit_mb: int = 1024
+
+    # Подписанные ссылки на тайлы (ADR-0008).
+    url_signing_secret: str | None = None
+    url_signing_secret_previous: str | None = None
+    signed_url_ttl_seconds: int = 86400
+    sign_exp_rounding_seconds: int = 3600
+
     # Сколько секунд ждать каждую зависимость в /ready.
     ready_timeout_seconds: float = 2.0
 

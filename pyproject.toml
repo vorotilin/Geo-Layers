@@ -13,6 +13,12 @@ dependencies = [
     "alembic>=1.13",
     "sqlalchemy>=2.0",
     "psycopg-pool>=3.2",
+    "numpy>=2.0",
+    "pyproj>=3.6",
+    "morecantile>=6.0",
+    "ijson>=3.3",
+    "pillow>=11",
+    "python-multipart>=0.0.9",
 ]
 
 [dependency-groups]
@@ -21,6 +27,7 @@ dev = [
     "httpx2",
     "ruff>=0.6",
     "mypy>=1.11",
+    "shapely>=2.0",
 ]
 
 [build-system]

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import jobs, service
+from app.api import imports, jobs, layers, service
 from app.config import Settings, get_settings
 from app.db import create_pool
 from app.errors import install_error_handlers
@@ -51,6 +51,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     app.include_router(service.router)
     app.include_router(jobs.router)
+    app.include_router(imports.router)
+    app.include_router(layers.router)
     return app
 
 
