@@ -24,6 +24,11 @@ x-app: &app
     DATABASE_URL: postgresql://apc:${POSTGRES_PASSWORD:-apc}@postgres:5432/apc
     DATA_DIR: /var/lib/apc-layers
     CACHE_DIR: /var/cache/apc-layers
+    S3_ENDPOINT: http://minio:9000
+    S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+    S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+    S3_BUCKET: ${S3_BUCKET:-apc-layers}
+    S3_REGION: us-east-1
   volumes:
     - data:/var/lib/apc-layers
     - cache:/var/cache/apc-layers
@@ -38,6 +43,7 @@ services:
       disable: true
     depends_on:
       postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
 
   api:
     <<: *app
@@ -78,7 +84,23 @@ services:
       timeout: 5s
       retries: 20
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
 volumes:
   pgdata:
   data:
   cache:
+  minio:

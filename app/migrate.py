@@ -17,6 +17,7 @@ from app.auth import ensure_bootstrap_token
 from app.config import Settings
 from app.db import sqlalchemy_url
 from app.logs import setup_logging
+from app.storage import ensure_s3_bucket
 
 log = logging.getLogger(__name__)
 
@@ -71,4 +72,5 @@ def migrate(settings: Settings) -> None:
     upgrade_database(settings.database_url)
     with psycopg.connect(settings.database_url) as conn:
         ensure_bootstrap_token(conn, settings.bootstrap_admin_token)
+    ensure_s3_bucket(settings)
     log.info("migrate done")

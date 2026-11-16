@@ -22,8 +22,10 @@ class DatasetRef(_Model):
 
 
 class Geometry(_Model):
-    # M2: wkt, center_size, h3, quadkey, latlng.
-    type: Literal["geojson"]
+    # M2: h3, quadkey, latlng.
+    type: Literal["geojson", "wkt", "center_size"]
+    column: str | None = Field(default=None, max_length=200)  # для wkt: колонка с WKT
+    columns: list[str] | None = None  # для center_size: [x, y, w, h]
 
 
 class Metric(_Model):

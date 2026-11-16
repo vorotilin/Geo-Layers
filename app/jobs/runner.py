@@ -19,7 +19,7 @@ from typing import Any
 import psycopg
 
 from app.config import Settings
-from app.jobs import queue
+from app.jobs import callbacks, queue
 from app.jobs.queue import Job
 
 log = logging.getLogger(__name__)
@@ -108,6 +108,7 @@ class Worker:
     def run_once(self, conn: psycopg.Connection[Any]) -> Job | None:
         """Подбирает зависшие (не чаще раза в интервал), берёт и выполняет одно задание."""
         self._requeue_stale(conn)
+        callbacks.deliver_due(conn, self.settings)
         if not self.handlers:
             return None
         # Только известные типы: незнакомые ждут воркер новой версии.
@@ -155,6 +156,9 @@ class Worker:
         else:
             if queue.complete(conn, job_id, self.worker_id, result):
                 log.info("job succeeded", extra=extra)
+                url = job["payload"].get("callback_url")
+                if url:
+                    callbacks.schedule(conn, job_id, url, result)
             else:
                 log.info("job finished but no longer ours", extra=extra)
         finally:

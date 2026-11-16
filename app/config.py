@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     data_dir: str = "/var/lib/apc-layers"
     cache_dir: str = "/var/cache/apc-layers"
 
+    # S3 (с M2): если S3_BUCKET задан — используется S3Storage с зеркалом в CACHE_DIR.
+    s3_endpoint: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = None
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+
     # Очередь заданий (ADR-0003).
     # Как часто воркер продлевает аренду задания и проверяет отмену, секунды.
     job_heartbeat_seconds: float = 10
@@ -48,11 +55,21 @@ class Settings(BaseSettings):
     max_job_duration_seconds: int = 3600
     parser_memory_limit_mb: int = 1024
 
+    # Rate limit на дорогих ручках (batch, aggregate), запросов в секунду на токен.
+    # 0 — выключен. M2: token bucket в памяти; для нескольких процессов — Redis.
+    rate_limit_expensive_rps: float = 5.0
+    # Rate limit на подписанных тайлах, запросов в секунду на префикс (слой+версия).
+    # 0 — выключен (тайлы раздаются по подписи).
+    rate_limit_tiles_rps: float = 0.0
+
     # Подписанные ссылки на тайлы (ADR-0008).
     url_signing_secret: str | None = None
     url_signing_secret_previous: str | None = None
     signed_url_ttl_seconds: int = 86400
     sign_exp_rounding_seconds: int = 3600
+
+    # Подпись callback'ов в платформу (common-requirements §3).
+    callback_signing_secret: str | None = None
 
     # Собранная статика веб-интерфейса (ui/dist), раздаётся по /ui/. Нет каталога — нет /ui.
     ui_dir: str = "/srv/ui"

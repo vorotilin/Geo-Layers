@@ -115,6 +115,7 @@ def _json(body: dict[str, Any]) -> dict[str, Any]:
 class ImportRequest(BaseModel):
     file_id: str
     manifest: dict[str, Any]
+    callback_url: str | None = None
 
 
 @router.post("/imports", status_code=202)
@@ -172,10 +173,13 @@ def create_import(
                 accepted_body(settings, job) | {"import_id": str(existing["id"])}, status_code=200
             )
         import_id = str(created["id"])
+        payload = {"import_id": import_id}
+        if body.callback_url:
+            payload["callback_url"] = body.callback_url
         job = queue.enqueue(
             conn,
             "import",
-            {"import_id": import_id},
+            payload,
             namespace_id=principal.namespace_id,
             token_id=principal.token_id,
             idempotency_key=idempotency_key,

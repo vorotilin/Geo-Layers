@@ -6,6 +6,7 @@ const selection = defineModel({ default: null })
 const layers = ref([])
 const nextCursor = ref(null)
 const detail = ref(null)
+const legend = ref(null)
 const error = ref('')
 
 async function load(more = false) {
@@ -26,8 +27,16 @@ async function open(layer) {
   choose(current || detail.value.versions[0])
 }
 
-function choose(version) {
+async function choose(version) {
   selection.value = version ? { layer: detail.value, version } : null
+  legend.value = null
+  if (version) {
+    try {
+      legend.value = await get(`/v1/layers/${detail.value.id}/legend?version=${version.id}`)
+    } catch {
+      legend.value = null
+    }
+  }
 }
 
 async function publish(version) {
@@ -86,5 +95,30 @@ defineExpose({ load })
       сред {{ formatValue(selection.version.stats.mean) }} ·
       макс {{ formatValue(selection.version.stats.max) }}
     </p>
+    <div v-if="legend && legend.entries.length">
+      <p class="muted">Легенда · {{ legend.method }}</p>
+      <div v-for="e in legend.entries" :key="e.index" class="legend-row">
+        <span class="swatch" :style="{ background: e.color }"></span>
+        <span>{{ e.label }}</span>
+      </div>
+    </div>
   </section>
 </template>
+
+<style scoped>
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+  font-size: 12px;
+}
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  flex: none;
+}
+</style>

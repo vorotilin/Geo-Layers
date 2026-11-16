@@ -9,7 +9,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import imports, jobs, layers, service
+from app.api import (
+    build,
+    cache,
+    data,
+    imports,
+    jobs,
+    layers,
+    point_sets,
+    polygons,
+    service,
+    styles,
+    tokens,
+)
 from app.config import Settings, get_settings
 from app.db import create_pool
 from app.errors import install_error_handlers
@@ -56,6 +68,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(jobs.router)
     app.include_router(imports.router)
     app.include_router(layers.router)
+    app.include_router(styles.router)
+    app.include_router(tokens.router)
+    app.include_router(point_sets.router)
+    app.include_router(build.router)
+    app.include_router(data.router)
+    app.include_router(cache.router)
+    app.include_router(polygons.router)
 
     # Веб-интерфейс (ADR-0010): статика из сборки Vite, ходит только в публичный /v1.
     if Path(settings.ui_dir, "index.html").is_file():

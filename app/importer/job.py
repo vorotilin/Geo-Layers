@@ -138,6 +138,42 @@ def run_parser(ctx: JobContext, src: Path, work: Path, manifest: Manifest) -> di
     return summary
 
 
+def _tabular_parsed(
+    ctx: JobContext, storage: Any, storage_key: str, manifest: Manifest, report: Report
+) -> Parsed:
+    """CSV/XLSX-сетки (WKT или центр+размер) → Parsed, минуя подпроцесс GeoJSON."""
+    from app.importer.tabular import TabularError, parse_tabular
+
+    data = storage.path(storage_key).read_bytes()
+    fmt = "xlsx" if data[:4] == b"PK\x03\x04" else "csv"
+    geom: dict[str, Any] = {"type": manifest.geometry.type}
+    if manifest.geometry.type == "wkt":
+        geom["column"] = manifest.geometry.column or "geom"
+    else:
+        geom["columns"] = manifest.geometry.columns or ["x", "y", "w", "h"]
+    try:
+        out = parse_tabular(
+            data,
+            fmt=fmt,
+            key_col=manifest.key,
+            metric_cols=[m.column for m in manifest.metrics],
+            geom=geom,
+        )
+    except TabularError as exc:
+        raise JobError(exc.error, exc.message) from None
+    report.features = len(out["keys"]) + out["errors"]
+    report.rows_ok = len(out["keys"])
+    if out["errors"]:
+        report.errors_by_type["bad_row"] = out["errors"]
+    return Parsed(
+        keys=np.array(out["keys"], dtype=np.str_),
+        cells=Cells(out["xmin"], out["xmax"], out["ymin"], out["ymax"]),
+        values=out["values"],
+        feature=np.arange(len(out["keys"]), dtype=np.int64),
+        crs=normalize_crs(manifest.crs),
+    )
+
+
 def load_parsed(out: Path, summary: dict[str, Any], manifest: Manifest, report: Report) -> Parsed:
     keys: list[str] = []
     parts: dict[str, list[Any]] = {
@@ -489,8 +525,15 @@ def handle_import(ctx: JobContext) -> dict[str, Any]:
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     try:
-        summary = run_parser(ctx, storage.path(row["storage_key"]), work, manifest)
-        parsed = drop_duplicate_keys(load_parsed(work / "out", summary, manifest, report), report)
+        if manifest.geometry.type == "geojson":
+            summary = run_parser(ctx, storage.path(row["storage_key"]), work, manifest)
+            parsed = drop_duplicate_keys(
+                load_parsed(work / "out", summary, manifest, report), report
+            )
+        else:
+            parsed = drop_duplicate_keys(
+                _tabular_parsed(ctx, storage, row["storage_key"], manifest, report), report
+            )
         ctx.progress(65)
         with ctx.connect() as conn:
             _lock_provider(conn, namespace, manifest.dataset.provider, parsed.crs.name)

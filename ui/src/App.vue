@@ -4,6 +4,7 @@ import { getToken, setToken } from './api.js'
 import LoginForm from './components/LoginForm.vue'
 import LayerPanel from './components/LayerPanel.vue'
 import ImportForm from './components/ImportForm.vue'
+import PointsForm from './components/PointsForm.vue'
 import MapView from './components/MapView.vue'
 
 const token = ref(getToken())
@@ -29,6 +30,7 @@ function logout() {
       <h1>Гео-слои <button class="link muted" @click="logout">выйти</button></h1>
       <LayerPanel :key="layersKey" v-model="selection" />
       <ImportForm @imported="layersKey++" />
+      <PointsForm @imported="layersKey++" />
     </aside>
     <main class="map">
       <MapView :selection="selection" />

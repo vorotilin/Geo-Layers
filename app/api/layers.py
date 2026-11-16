@@ -16,18 +16,22 @@ from pydantic import BaseModel, Field
 
 from app.api.imports import parse_uuid
 from app.api.service import SettingsDep
+from app.api.styles import DEFAULT_STYLE, resolve_style
 from app.auth import Principal, ReadPrincipal, WritePrincipal, find_principal
 from app.config import Settings
 from app.errors import ApiError
 from app.grids import store
 from app.grids.crs import WGS84, normalize_crs, transformer
+from app.jobs import queue
+from app.ratelimit import check_rate_limit_key
 from app.signing import rounded_exp, sign, verify
 from app.storage import LocalStorage, get_storage
+from app.styles import legend as build_legend
 from app.tiles import render
+from app.tiles.overview import overview_min_zoom
 
 router = APIRouter(prefix="/v1", tags=["layers"])
 
-DEFAULT_STYLE = "default"  # M1: одна фиксированная палитра; стили с ревизиями — M2
 MAX_VALUE_LAYERS = 20
 MAX_PAGE = 200
 TILE_CACHE_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
@@ -36,7 +40,7 @@ VERSION_SELECT = """
     SELECT v.id, v.layer_id, v.period, v.revision, v.status, v.values_key, v.stats,
            v.created_at, v.published_at, v.grid_id,
            l.slug, l.title, l.unit, l.value_kind, d.namespace_id,
-           g.crs, g.params AS grid_params, g.cell_count
+           g.crs, g.kind, g.params AS grid_params, g.cell_count
     FROM layer_version v
     JOIN layer l ON l.id = v.layer_id
     JOIN dataset d ON d.id = l.dataset_id
@@ -220,13 +224,49 @@ def get_version(
     return public_version(v, full=True)
 
 
+@router.get("/layers/{layer_id}/legend")
+def get_legend(
+    layer_id: str,
+    request: Request,
+    principal: ReadPrincipal,
+    version: str | None = None,
+    style: str = DEFAULT_STYLE,
+) -> dict[str, Any]:
+    """Легенда слоя: те же breaks + палитра, что и тайлы (не расходятся по построению)."""
+    layer_id_u = parse_uuid(layer_id, _layer_not_found())
+    version_u = parse_uuid(version, _version_not_found()) if version else None
+    with request.app.state.pool.connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        layer_exists = cur.execute(
+            "SELECT 1 FROM layer l JOIN dataset d ON d.id = l.dataset_id "
+            "WHERE l.id = %s AND d.namespace_id = %s",
+            (layer_id_u, principal.namespace_id),
+        ).fetchone()
+        if layer_exists is None:
+            raise _layer_not_found()
+        v = find_version(conn, principal.namespace_id, layer_id_u, version_u)
+        if v is None:
+            if version_u:
+                raise _version_not_found()
+            raise ApiError(409, "no_published_version", "У слоя нет опубликованной версии")
+        style_obj, _ = resolve_style(conn, v["namespace_id"], style, latest=True)
+    if style_obj is None:
+        raise ApiError(404, "style_not_found", "Стиль не найден")
+    return build_legend(style_obj, v["stats"], v["unit"])
+
+
 @router.post("/layers/{layer_id}/versions/{version_id}/publish")
 def publish_version(
-    layer_id: str, version_id: str, request: Request, principal: WritePrincipal
+    layer_id: str,
+    version_id: str,
+    request: Request,
+    principal: WritePrincipal,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """Публикация: версия становится текущей для своего периода. Повтор — без изменений.
 
-    M1 — синхронно; с пирамидой обзоров (M2) станет заданием (202).
+    Для WGS84-прямоугольных сеток дополнительно ставится прогрев обзорной пирамиды
+    (0..z_s−1) в обеих тайловых схемах (design §5.3).
     """
     layer_id = parse_uuid(layer_id, _layer_not_found())
     version_id = parse_uuid(version_id, _version_not_found())
@@ -240,8 +280,45 @@ def publish_version(
                 (version_id,),
             )
             v = find_version(conn, principal.namespace_id, layer_id, version_id)
+            assert v is not None  # noqa: S101 — только что опубликована
+            _enqueue_overview_warm(conn, request, settings, principal, v)
     assert v is not None  # noqa: S101
     return public_version(v)
+
+
+def _enqueue_overview_warm(
+    conn: Any, request: Request, settings: Settings, principal: Principal, v: dict[str, Any]
+) -> None:
+    """Прогрев обзорных зумов (0..z_s−1) в 3857 и 3395 для WGS84-прямоугольной сетки."""
+    if v["kind"] != "rectilinear" or normalize_crs(v["crs"]).name != WGS84:
+        return
+    storage = get_storage(settings)
+    layout = store.load_layout(storage, v["grid_params"]["layout_key"])
+    z_s = overview_min_zoom(layout)
+    if z_s <= 0:
+        return
+    bbox = [
+        float(layout.x_edges[0]),
+        float(layout.y_edges[0]),
+        float(layout.x_edges[-1]),
+        float(layout.y_edges[-1]),
+    ]
+    for tms in ("3857", "3395"):
+        queue.enqueue(
+            conn,
+            "warm_cache",
+            {
+                "layer_id": str(v["layer_id"]),
+                "version_id": str(v["id"]),
+                "tms": tms,
+                "bbox": bbox,
+                "min_zoom": 0,
+                "max_zoom": max(z_s - 1, 0),
+                "style": "default",
+            },
+            namespace_id=principal.namespace_id,
+            token_id=principal.token_id,
+        )
 
 
 # --- значение в точке ---
@@ -268,11 +345,18 @@ def _layer_refs(raw: str) -> list[tuple[str, str | None]]:
 
 
 def value_at(storage: LocalStorage, v: dict[str, Any], lng: float, lat: float) -> float | None:
-    crs = normalize_crs(v["crs"])
-    layout = store.load_layout(storage, v["grid_params"]["layout_key"])
-    x, y = (lng, lat) if crs.is_wgs84 else transformer(WGS84, crs.name).transform(lng, lat)
-    idx = layout.lookup(np.array([x]), np.array([y]))
-    value = store.take(store.load_values(storage, v["values_key"]), idx)[0]
+    values = store.load_values(storage, v["values_key"])
+    if v["kind"] == "polygons":
+        from app.grids.polygons import PolygonGrid
+
+        grid = PolygonGrid(store.load_polygons(storage, v["grid_params"]["polygons_key"]))
+        idx = grid.lookup(np.array([lng]), np.array([lat]))
+    else:
+        crs = normalize_crs(v["crs"])
+        layout = store.load_layout(storage, v["grid_params"]["layout_key"])
+        x, y = (lng, lat) if crs.is_wgs84 else transformer(WGS84, crs.name).transform(lng, lat)
+        idx = layout.lookup(np.array([x]), np.array([y]))
+    value = store.take(values, idx)[0]
     return float(value) if np.isfinite(value) else None
 
 
@@ -341,27 +425,28 @@ def sign_tiles(
     """Подписанный шаблон URL тайлов слоя. Без version — текущая опубликованная версия."""
     if not settings.url_signing_secret:
         raise ApiError(503, "signing_not_configured", "Не задан URL_SIGNING_SECRET")
-    if body.style != DEFAULT_STYLE:
-        raise ApiError(404, "style_not_found", "Стиль не найден")
     layer_id = parse_uuid(body.layer, _layer_not_found())
     version_id = parse_uuid(body.version, _version_not_found()) if body.version else None
     with request.app.state.pool.connection() as conn:
         v = find_version(conn, principal.namespace_id, layer_id, version_id)
-    if v is None:
-        if version_id:
-            raise _version_not_found()
-        raise ApiError(409, "no_published_version", "У слоя нет опубликованной версии")
+        if v is None:
+            if version_id:
+                raise _version_not_found()
+            raise ApiError(409, "no_published_version", "У слоя нет опубликованной версии")
+        _, style_ref = resolve_style(conn, v["namespace_id"], body.style, latest=True)
+    if style_ref is None:
+        raise ApiError(404, "style_not_found", "Стиль не найден")
     exp = rounded_exp(
         body.ttl or settings.signed_url_ttl_seconds, settings.sign_exp_rounding_seconds
     )
-    prefix = tile_prefix(layer_id, str(v["id"]), body.style, body.tms)
+    prefix = tile_prefix(layer_id, str(v["id"]), style_ref, body.tms)
     sig = sign(prefix, exp, settings.url_signing_secret)
     base = settings.public_base_url.rstrip("/")
     return {
         "url_template": f"{base}{prefix}{{z}}/{{x}}/{{y}}.png?exp={exp}&sig={sig}",
         "layer_id": layer_id,
         "version_id": str(v["id"]),
-        "style": body.style,
+        "style": style_ref,
         "tms": body.tms,
         "exp": exp,
     }
@@ -416,8 +501,7 @@ def get_tile(
     y_num, size = _parse_y(y)
     prefix = tile_prefix(layer_id, version_id, style, tms)
     principal = _authorize_tile(request, settings, prefix)
-    if style != DEFAULT_STYLE:
-        raise ApiError(404, "style_not_found", "Стиль не найден")
+    check_rate_limit_key(prefix, settings.rate_limit_tiles_rps)
     if not render.tile_in_range(tms, z, x, y_num):
         raise ApiError(404, "tile_out_of_range", "Тайл вне схемы")
 
@@ -440,20 +524,33 @@ def get_tile(
             VERSION_SELECT + " WHERE v.id = %s AND v.layer_id = %s",
             (version_uuid, layer_uuid),
         ).fetchone()
-    if v is None or (principal is not None and v["namespace_id"] != principal.namespace_id):
-        raise _version_not_found()
+        if v is None or (principal is not None and v["namespace_id"] != principal.namespace_id):
+            raise _version_not_found()
+        style_obj, style_ref = resolve_style(conn, v["namespace_id"], style)
+    if style_ref is None:
+        raise ApiError(404, "style_not_found", "Стиль не найден")
     storage = get_storage(settings)
-    png = render.render(
-        store.load_values(storage, v["values_key"]),
-        store.load_layout(storage, v["grid_params"]["layout_key"]),
-        v["grid_params"]["layout_key"],
-        normalize_crs(v["crs"]),
-        v["stats"],
-        tms,
-        z,
-        x,
-        y_num,
-        size,
-    )
+    values = store.load_values(storage, v["values_key"])
+    if v["kind"] == "polygons":
+        polygons = store.load_polygons(storage, v["grid_params"]["polygons_key"])
+        png = render.render_polygon_tile(
+            values, polygons, v["stats"], tms, z, x, y_num, size, style=style_obj
+        )
+    else:
+        png = render.render(
+            values,
+            store.load_layout(storage, v["grid_params"]["layout_key"]),
+            v["grid_params"]["layout_key"],
+            normalize_crs(v["crs"]),
+            v["stats"],
+            tms,
+            z,
+            x,
+            y_num,
+            size,
+            style=style_obj,
+            value_kind=v["value_kind"],
+            values_key=v["values_key"],
+        )
     cache.write_bytes(rel, png)
     return Response(png, media_type="image/png", headers=headers)

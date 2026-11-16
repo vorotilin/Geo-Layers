@@ -57,6 +57,28 @@ def values_key(version_id: str) -> str:
     return f"values/{version_id}.f32"
 
 
+def polygons_key(grid_id: str) -> str:
+    return f"grids/{grid_id}/polygons.npz"
+
+
+def save_polygons(storage: LocalStorage, grid_id: str, polygons: list[Any]) -> str:
+    """Полигоны (WKB) в порядке idx; ключ лежит в `grid.params`."""
+    from shapely import to_wkb
+
+    key = polygons_key(grid_id)
+    wkb = np.array([to_wkb(p) for p in polygons], dtype=object)
+    with storage.writer(key) as fh:
+        np.savez(fh, wkb=wkb)
+    return key
+
+
+def load_polygons(storage: LocalStorage, key: str) -> list[Any]:
+    from shapely import from_wkb
+
+    with np.load(storage.path(key), allow_pickle=True) as d:
+        return [from_wkb(w) for w in d["wkb"]]
+
+
 def save_cells(storage: LocalStorage, grid_id: str, cells: Cells) -> str:
     key = cells_key(grid_id, len(cells))
     with storage.writer(key) as fh:
@@ -103,6 +125,10 @@ class _LRU:
             self._items.move_to_end(key)
             while len(self._items) > self.size:
                 self._items.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._items.clear()
 
 
 _layouts = _LRU(32)

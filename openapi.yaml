@@ -342,6 +342,52 @@ paths:
           content: *id001
       security:
       - bearer: []
+  /v1/layers/{layer_id}/legend:
+    get:
+      tags:
+      - layers
+      summary: Get Legend
+      description: 'Легенда слоя: те же breaks + палитра, что и тайлы (не расходятся по построению).'
+      operationId: get_legend_v1_layers__layer_id__legend_get
+      parameters:
+      - name: layer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Layer Id
+      - name: version
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version
+      - name: style
+        in: query
+        required: false
+        schema:
+          type: string
+          default: default
+          title: Style
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Legend V1 Layers  Layer Id  Legend Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
   /v1/layers/{layer_id}/versions/{version_id}/publish:
     post:
       tags:
@@ -350,7 +396,9 @@ paths:
       description: 'Публикация: версия становится текущей для своего периода. Повтор — без изменений.
 
 
-        M1 — синхронно; с пирамидой обзоров (M2) станет заданием (202).'
+        Для WGS84-прямоугольных сеток дополнительно ставится прогрев обзорной пирамиды
+
+        (0..z_s−1) в обеих тайловых схемах (design §5.3).'
       operationId: publish_version_v1_layers__layer_id__versions__version_id__publish_post
       parameters:
       - name: layer_id
@@ -520,8 +568,763 @@ paths:
           content: *id001
       description: 'Тайл PNG 256×256 (`{y}.png`) или 512×512 (`{y}@2x.png`). `tms`: `3857` | `3395`. Доступ
         — по `exp` и `sig` из `POST /v1/tiles/sign` или Bearer-токену read.'
+  /v1/styles:
+    post:
+      tags:
+      - styles
+      summary: Create Style
+      operationId: create_style_v1_styles_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStyle'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Style V1 Styles Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+    get:
+      tags:
+      - styles
+      summary: List Styles
+      description: Имена стилей с последней ревизией (каталог небольшой, без курсора).
+      operationId: list_styles_v1_styles_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Styles V1 Styles Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/styles/{style_id}:
+    put:
+      tags:
+      - styles
+      summary: Update Style
+      description: Новая ревизия существующего стиля (старая остаётся по `name@rev`).
+      operationId: update_style_v1_styles__style_id__put
+      parameters:
+      - name: style_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Style Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStyle'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Update Style V1 Styles  Style Id  Put
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/tokens:
+    post:
+      tags:
+      - tokens
+      summary: Create Token
+      operationId: create_token_v1_tokens_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateToken'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Token V1 Tokens Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+    get:
+      tags:
+      - tokens
+      summary: List Tokens
+      operationId: list_tokens_v1_tokens_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Tokens V1 Tokens Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/tokens/{token_id}:
+    delete:
+      tags:
+      - tokens
+      summary: Revoke Token
+      operationId: revoke_token_v1_tokens__token_id__delete
+      parameters:
+      - name: token_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Token Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Revoke Token V1 Tokens  Token Id  Delete
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/point-sets:
+    post:
+      tags:
+      - point-sets
+      summary: Create Point Set
+      description: Создаёт набор с первой версией (файл точек + маппинг колонок).
+      operationId: create_point_set_v1_point_sets_post
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_create_point_set_v1_point_sets_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Create Point Set V1 Point Sets Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+    get:
+      tags:
+      - point-sets
+      summary: List Point Sets
+      operationId: list_point_sets_v1_point_sets_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Point Sets V1 Point Sets Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/point-sets/{set_id}/versions:
+    post:
+      tags:
+      - point-sets
+      summary: Add Version
+      description: Пополнение набора новой версией.
+      operationId: add_version_v1_point_sets__set_id__versions_post
+      parameters:
+      - name: set_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Set Id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_add_version_v1_point_sets__set_id__versions_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Add Version V1 Point Sets  Set Id  Versions Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/point-sets/{set_id}/heatmap/{tms}/{z}/{x}/{y}:
+    get:
+      tags:
+      - point-sets
+      summary: Point Heatmap
+      description: Тепловая карта с радиусом в пикселях (чисто визуальная, brief §3).
+      operationId: point_heatmap_v1_point_sets__set_id__heatmap__tms___z___x___y__get
+      parameters:
+      - name: set_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Set Id
+      - name: tms
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tms
+      - name: z
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Z
+      - name: x
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: X
+      - name: y
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Y
+      - name: radius
+        in: query
+        required: false
+        schema:
+          type: number
+          default: 20
+          title: Radius
+      - name: version
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/layers/build:
+    post:
+      tags:
+      - build
+      summary: Build Layer
+      operationId: build_layer_v1_layers_build_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildRequest'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Build Layer V1 Layers Build Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/values/batch:
+    post:
+      tags:
+      - data
+      summary: Batch Values
+      description: Значения по слоям для пакета точек (id, lat, lng).
+      operationId: batch_values_v1_values_batch_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Batch Values V1 Values Batch Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/aggregate:
+    post:
+      tags:
+      - data
+      summary: Aggregate
+      description: 'Агрегат по bbox [w,s,e,n] или GeoJSON-полигону: mean/sum/min/max/cells/coverage.'
+      operationId: aggregate_v1_aggregate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AggregateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Aggregate V1 Aggregate Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/layers/{layer_id}/rating:
+    get:
+      tags:
+      - data
+      summary: Rating
+      description: Рейтинг ячеек по значению (по умолчанию — наибольшие).
+      operationId: rating_v1_layers__layer_id__rating_get
+      parameters:
+      - name: layer_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Layer Id
+      - name: version
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version
+      - name: order
+        in: query
+        required: false
+        schema:
+          enum:
+          - desc
+          - asc
+          type: string
+          default: desc
+          title: Order
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 10000
+          minimum: 1
+          default: 10
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Rating V1 Layers  Layer Id  Rating Get
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/cache/purge:
+    post:
+      tags:
+      - cache
+      summary: Purge Cache
+      description: Сброс дискового кэша PNG и in-memory кэшей (тайлов индексов, обзоров).
+      operationId: purge_cache_v1_cache_purge_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Purge Cache V1 Cache Purge Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/cache/warm:
+    post:
+      tags:
+      - cache
+      summary: Warm Cache
+      description: Прогрев кэша тайлов по bbox и диапазону зумов (202, задание).
+      operationId: warm_cache_v1_cache_warm_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WarmRequest'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Warm Cache V1 Cache Warm Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
+  /v1/polygons:
+    post:
+      tags:
+      - polygons
+      summary: Import Polygons
+      operationId: import_polygons_v1_polygons_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_import_polygons_v1_polygons_post'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Import Polygons V1 Polygons Post
+        '401':
+          description: Нет токена или он недействителен
+          content: *id001
+        4XX:
+          description: Ошибка запроса
+          content: *id001
+      security:
+      - bearer: []
 components:
   schemas:
+    AggregateRequest:
+      properties:
+        layers:
+          type: string
+          title: Layers
+        bbox:
+          anyOf:
+          - items:
+              type: number
+            type: array
+            maxItems: 4
+            minItems: 4
+          - type: 'null'
+          title: Bbox
+        geometry:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Geometry
+      type: object
+      required:
+      - layers
+      title: AggregateRequest
+    BatchPoint:
+      properties:
+        id:
+          type: string
+          title: Id
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lng:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lng
+      type: object
+      required:
+      - id
+      - lat
+      - lng
+      title: BatchPoint
+    BatchRequest:
+      properties:
+        points:
+          items:
+            $ref: '#/components/schemas/BatchPoint'
+          type: array
+          maxItems: 10000
+          minItems: 1
+          title: Points
+        layers:
+          type: string
+          title: Layers
+      type: object
+      required:
+      - points
+      - layers
+      title: BatchRequest
+    Body_add_version_v1_point_sets__set_id__versions_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+        lon:
+          type: string
+          title: Lon
+          default: lng
+        lat:
+          type: string
+          title: Lat
+          default: lat
+        weight:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Weight
+        category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category
+      type: object
+      required:
+      - file
+      title: Body_add_version_v1_point_sets__set_id__versions_post
+    Body_create_point_set_v1_point_sets_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+        title:
+          type: string
+          title: Title
+        lon:
+          type: string
+          title: Lon
+          default: lng
+        lat:
+          type: string
+          title: Lat
+          default: lat
+        weight:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Weight
+        category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category
+      type: object
+      required:
+      - file
+      - title
+      title: Body_create_point_set_v1_point_sets_post
+    Body_import_polygons_v1_polygons_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+        provider:
+          type: string
+          title: Provider
+        title:
+          type: string
+          title: Title
+        period:
+          type: string
+          title: Period
+        slug:
+          type: string
+          title: Slug
+        key:
+          type: string
+          title: Key
+          default: zone_id
+        column:
+          type: string
+          title: Column
+          default: val
+        metric_title:
+          type: string
+          title: Metric Title
+          default: ''
+        unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unit
+        value_kind:
+          type: string
+          title: Value Kind
+          default: intensive
+      type: object
+      required:
+      - file
+      - provider
+      - title
+      - period
+      - slug
+      title: Body_import_polygons_v1_polygons_post
     Body_upload_file_v1_files_post:
       properties:
         file:
@@ -532,6 +1335,85 @@ components:
       required:
       - file
       title: Body_upload_file_v1_files_post
+    BuildRequest:
+      properties:
+        point_set_id:
+          type: string
+          title: Point Set Id
+        version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version Id
+        method:
+          type: string
+          title: Method
+          default: bin
+        slug:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_]{0,62}$
+          title: Slug
+        title:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Title
+        unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unit
+        grid_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Grid Id
+        params:
+          additionalProperties: true
+          type: object
+          title: Params
+          default: {}
+      type: object
+      required:
+      - point_set_id
+      - slug
+      - title
+      title: BuildRequest
+    CreateStyle:
+      properties:
+        name:
+          type: string
+          maxLength: 63
+          minLength: 1
+          title: Name
+        spec:
+          additionalProperties: true
+          type: object
+          title: Spec
+      type: object
+      required:
+      - name
+      - spec
+      title: CreateStyle
+    CreateToken:
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Title
+        scopes:
+          items:
+            type: string
+          type: array
+          maxItems: 3
+          minItems: 1
+          title: Scopes
+      type: object
+      required:
+      - title
+      - scopes
+      title: CreateToken
     HTTPValidationError:
       properties:
         detail:
@@ -550,6 +1432,11 @@ components:
           additionalProperties: true
           type: object
           title: Manifest
+        callback_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Callback Url
       type: object
       required:
       - file_id
@@ -587,6 +1474,16 @@ components:
       required:
       - layer
       title: SignRequest
+    UpdateStyle:
+      properties:
+        spec:
+          additionalProperties: true
+          type: object
+          title: Spec
+      type: object
+      required:
+      - spec
+      title: UpdateStyle
     ValidationError:
       properties:
         loc:
@@ -613,6 +1510,51 @@ components:
       - msg
       - type
       title: ValidationError
+    WarmRequest:
+      properties:
+        layer_id:
+          type: string
+          title: Layer Id
+        version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version Id
+        tms:
+          type: string
+          enum:
+          - '3857'
+          - '3395'
+          title: Tms
+          default: '3857'
+        bbox:
+          items:
+            type: number
+          type: array
+          maxItems: 4
+          minItems: 4
+          title: Bbox
+        min_zoom:
+          type: integer
+          maximum: 22.0
+          minimum: 0.0
+          title: Min Zoom
+        max_zoom:
+          type: integer
+          maximum: 22.0
+          minimum: 0.0
+          title: Max Zoom
+        style:
+          type: string
+          title: Style
+          default: default
+      type: object
+      required:
+      - layer_id
+      - bbox
+      - min_zoom
+      - max_zoom
+      title: WarmRequest
     Error:
       type: object
       required:

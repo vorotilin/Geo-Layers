@@ -336,6 +336,65 @@ def test_sample_three_files_one_grid(env: Env) -> None:
         assert env.value(version["layer_id"], lon, lat) == pytest.approx(expected, rel=1e-6)
 
 
+def test_custom_style_legend_and_tiles(env: Env) -> None:
+    grid = crs84_squares()
+    v = env.import_(grid.geojson(), grid.manifest())["result"]["versions"][0]
+    env.publish(v)
+    layer_id = v["layer_id"]
+
+    created = env.client.post(
+        "/v1/styles",
+        json={"name": "three_equal", "spec": {"method": "equal", "classes": 3, "opacity": 180}},
+        headers=AUTH,
+    )
+    assert created.status_code == 201, created.text
+
+    legend = env.client.get(
+        f"/v1/layers/{layer_id}/legend", params={"style": "three_equal"}, headers=AUTH
+    ).json()
+    assert len(legend["entries"]) == 3
+    assert legend["entries"][0]["color"] == "#ffffb2"  # первая из жёлто-красной палитры
+
+    default = env.client.get(f"/v1/layers/{layer_id}/legend", headers=AUTH).json()
+    assert len(default["entries"]) == 7  # встроенный стиль
+
+    signed = env.client.post(
+        "/v1/tiles/sign", json={"layer": layer_id, "style": "three_equal"}, headers=AUTH
+    ).json()
+    assert signed["style"] == "three_equal@1"  # ревизия в URL
+    lon0, lat0, lon1, lat1 = grid.bounds_wgs84()
+    t = render.TMS["3857"].tile((lon0 + lon1) / 2, (lat0 + lat1) / 2, 12)
+    url = urlsplit(signed["url_template"].format(z=t.z, x=t.x, y=t.y))
+    resp = env.client.get(f"{url.path}?{url.query}")
+    assert resp.status_code == 200 and resp.headers["content-type"] == "image/png"
+
+    assert (
+        env.client.get(
+            f"/v1/layers/{layer_id}/legend", params={"style": "missing"}, headers=AUTH
+        ).status_code
+        == 404
+    )
+
+
+def test_csv_grid_import(env: Env) -> None:
+    csv = "id;x;y;w;h;val\n1;37.60;55.70;0.005;0.005;10\n2;37.61;55.70;0.005;0.005;20\n"
+    manifest = {
+        "kind": "grid",
+        "dataset": {"provider": "csv", "title": "CSV 500м"},
+        "period": "2024Q1",
+        "geometry": {"type": "center_size", "columns": ["x", "y", "w", "h"]},
+        "key": "id",
+        "metrics": [
+            {"column": "val", "slug": "v", "title": "V", "unit": None, "value_kind": "extensive"}
+        ],
+    }
+    job = env.import_(csv.encode(), manifest)
+    assert job["status"] == "succeeded", job
+    assert job["result"]["rows_failed"] == 0
+    assert job["result"]["versions"][0]["slug"] == "v"
+    assert job["result"]["grid"]["cells_total"] == 2
+
+
 def test_layer_catalog_cursor(env: Env) -> None:
     grid = crs84_squares(metrics=3)
     env.import_(grid.geojson(), grid.manifest())
